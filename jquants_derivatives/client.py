@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Type
+from typing import Type, Union
 
 import jquantsapi
 import numpy as np
@@ -32,7 +32,6 @@ def cast_dataframe(data_class):
     def decorator(func):
         @wraps(func)
         def wrapper(self, date_yyyymmdd: str):
-            print("called")
             df = func(self, date_yyyymmdd)
             return pd.DataFrame(
                 {
@@ -56,27 +55,11 @@ def cast_series_dtype(ser: pd.Series, dtype: type) -> pd.Series:
         return ser.astype(dtype)
 
 
-def cast_dataframe_dtype(
-    df: pd.DataFrame, data_class: Type[IndexOption]
-) -> pd.DataFrame:
-    """DataFrameのデータ型をmodelsで定義したクラスの型に変換"""
-    return pd.DataFrame(
-        {
-            col: cast_series_dtype(df.loc[:, col], data_class.get_dtype(col))
-            for col in df.columns
-        }
-    )
-
-
 class Client(jquantsapi.Client):
     def __init__(self):
         super().__init__()
 
+    @cast_dataframe(IndexOption)
     @cache("OPTION_INDEX_OPTION")
     def get_option_index_option(self, *args, **kwargs) -> pd.DataFrame:
         return super().get_option_index_option(*args, **kwargs)
-
-    def get_option_index_option_processed(self, date_yyyymmdd: str) -> pd.DataFrame:
-        df = self.get_option_index_option(date_yyyymmdd)
-        casted_df = cast_dataframe_dtype(df, IndexOption)
-        return casted_df
