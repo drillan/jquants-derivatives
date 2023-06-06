@@ -30,7 +30,7 @@ class Option:
             "SpecialQuotationDay"
         )
 
-    def get_processed_data(self) -> dict[pd.DataFrame]:
+    def get_processed_data(self) -> dict[str, pd.DataFrame]:
         contracts_dfs = {
             contract: self.filter_data(self._groupby_contract_month.get_group(contract))
             for contract in self.contract_month
@@ -90,7 +90,7 @@ class Option:
 
 def plot_volatility(
     option: Option,
-    option_other: Option = None,
+    option_other: Option | None = None,
     colors: list = px.colors.qualitative.Dark2,
 ) -> go.Figure:
     date = f"{option.date: %Y/%m/%d}"

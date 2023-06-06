@@ -1,12 +1,14 @@
 from functools import wraps
-from typing import Type, Union
+from typing import Any, Type, TypeAlias, Union
 
 import jquantsapi
 import numpy as np
 import pandas as pd
 
 from . import database
-from .models import IndexOption
+from .models import DataFrameColumnsBase, IndexOption
+
+T: TypeAlias = Union[Type[DataFrameColumnsBase], Type[IndexOption]]
 
 
 def cache(table_name: str):
@@ -28,7 +30,7 @@ def cache(table_name: str):
     return decorator
 
 
-def cast_dataframe(data_class):
+def cast_dataframe(data_class: T):
     def decorator(func):
         @wraps(func)
         def wrapper(self, date_yyyymmdd: str):
@@ -45,7 +47,7 @@ def cast_dataframe(data_class):
     return decorator
 
 
-def cast_series_dtype(ser: pd.Series, dtype: type) -> pd.Series:
+def cast_series_dtype(ser: pd.Series, dtype: Type[Any]) -> pd.Series:
     """Seriesのデータ型を変換"""
     if np.issubdtype(dtype, np.number):
         return pd.to_numeric(ser, errors="coerce").astype(dtype)

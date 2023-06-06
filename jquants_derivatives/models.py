@@ -1,18 +1,19 @@
 from abc import ABC
 from dataclasses import dataclass
+from typing import Any, Type
 
 import numpy as np
 
 
 @dataclass
-class Base(ABC):
+class DataFrameColumnsBase(ABC):
     @classmethod
-    def get_dtype(cls, field: str) -> str:
+    def get_dtype(cls, field: str) -> Type[Any]:
         return cls.__annotations__[field]
 
 
 @dataclass
-class IndexOption(Base):
+class IndexOption(DataFrameColumnsBase):
     Date: np.dtype("datetime64[ns]")
     Code: str
     WholeDayOpen: float
@@ -45,6 +46,6 @@ class IndexOption(Base):
     InterestRate: float
 
     @classmethod
-    def get_dtype(cls, field: str) -> type:
+    def get_dtype(cls, field: str) -> Type[Any]:
         key = field.replace("(", "").replace(")", "")
         return cls.__annotations__[key]

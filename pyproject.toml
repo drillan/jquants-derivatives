@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "jquants-derivatives"
-version = "0.1.0-alpha"
+version = "0.1.0-alpha1"
 description = ""
 authors = ["driller"]
 readme = "README.md"
