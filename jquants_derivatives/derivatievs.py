@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 import pandas as pd
 import plotly.express as px
@@ -19,14 +20,16 @@ class Option:
         self.contract_month: list = sorted(self._groupby_contract_month.groups.keys())[
             : self.contracts
         ][: self.contracts]
-        self.contracts_dfs: dict[pd.DataFrame] = self.get_processed_data()
-        self.underlying_price: dict[float] = self.get_common_value("UnderlyingPrice")
-        self.base_volatility: dict[float] = self.get_common_value("BaseVolatility")
-        self.interest_rate: dict[float] = self.get_common_value("InterestRate")
-        self.last_tradingDay: dict[pd.Timestamp] = self.get_common_value(
+        self.contracts_dfs: dict[str, pd.DataFrame] = self.get_processed_data()
+        self.underlying_price: dict[str, float] = self.get_common_value(
+            "UnderlyingPrice"
+        )
+        self.base_volatility: dict[str, float] = self.get_common_value("BaseVolatility")
+        self.interest_rate: dict[str, float] = self.get_common_value("InterestRate")
+        self.last_tradingDay: dict[str, pd.Timestamp] = self.get_common_value(
             "LastTradingDay"
         )
-        self.special_quotationDay: dict[pd.Timestamp] = self.get_common_value(
+        self.special_quotationDay: dict[str, pd.Timestamp] = self.get_common_value(
             "SpecialQuotationDay"
         )
 
@@ -90,7 +93,7 @@ class Option:
 
 def plot_volatility(
     option: Option,
-    option_other: Option | None = None,
+    option_other: Optional[Option] = None,
     colors: list = px.colors.qualitative.Dark2,
 ) -> go.Figure:
     date = f"{option.date: %Y/%m/%d}"

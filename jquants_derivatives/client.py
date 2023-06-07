@@ -8,7 +8,7 @@ import pandas as pd
 from . import database
 from .models import DataFrameColumnsBase, IndexOption
 
-T: TypeAlias = Union[Type[DataFrameColumnsBase], Type[IndexOption]]
+ModelsType: TypeAlias = Union[Type[DataFrameColumnsBase], Type[IndexOption]]
 
 
 def cache(table_name: str):
@@ -30,7 +30,7 @@ def cache(table_name: str):
     return decorator
 
 
-def cast_dataframe(data_class: T):
+def cast_dataframe(data_class: ModelsType):
     def decorator(func):
         @wraps(func)
         def wrapper(self, date_yyyymmdd: str):
