@@ -56,6 +56,89 @@ df_20230605.iloc[:3, :6]
 |  1 | 2023-06-05 00:00:00 | 130060218 |              0 |              0 |             0 |               0 |
 |  2 | 2023-06-05 00:00:00 | 130060518 |              0 |              0 |             0 |               0 |
 
+### 型変換機能
+
+DataFrameの各列データ型は [jquants_derivatives.models](https://github.com/drillan/jquants-derivatives/blob/main/jquants_derivatives/models.py) で定義したデータ型にしたがって、自動的に型変換されます。
+
+```python
+jquants_derivatives.models.IndexOption??
+```
+
+```python
+Init signature:
+jquants_derivatives.models.IndexOption(
+    Date: dtype('<M8[ns]'),
+    Code: str,
+    WholeDayOpen: float,
+    WholeDayHigh: float,
+    WholeDayLow: float,
+    WholeDayClose: float,
+    NightSessionOpen: float,
+    NightSessionHigh: float,
+    NightSessionLow: float,
+    NightSessionClose: float,
+    DaySessionOpen: float,
+    DaySessionHigh: float,
+    DaySessionLow: float,
+    DaySessionClose: float,
+    Volume: float,
+    OpenInterest: float,
+    TurnoverValue: float,
+    ContractMonth: str,
+    StrikePrice: float,
+    VolumeOnlyAuction: float,
+    EmergencyMarginTriggerDivision: str,
+    PutCallDivision: int,
+    LastTradingDay: dtype('<M8[ns]'),
+...
+        key = field.replace("(", "").replace(")", "")
+        return cls.__annotations__[key]
+File:           ~/repo/jquants-derivatives/jquants_derivatives/models.py
+Type:           ABCMeta
+Subclasses:     
+```
+
+```python
+df_20230605.dtypes
+```
+
+```
+Date                              datetime64[ns]
+Code                                      object
+WholeDayOpen                             float64
+WholeDayHigh                             float64
+WholeDayLow                              float64
+WholeDayClose                            float64
+NightSessionOpen                         float64
+NightSessionHigh                         float64
+NightSessionLow                          float64
+NightSessionClose                        float64
+DaySessionOpen                           float64
+DaySessionHigh                           float64
+DaySessionLow                            float64
+DaySessionClose                          float64
+Volume                                   float64
+OpenInterest                             float64
+TurnoverValue                            float64
+ContractMonth                             object
+StrikePrice                              float64
+Volume(OnlyAuction)                      float64
+EmergencyMarginTriggerDivision            object
+PutCallDivision                            int64
+LastTradingDay                    datetime64[ns]
+SpecialQuotationDay               datetime64[ns]
+SettlementPrice                          float64
+...
+BaseVolatility                           float64
+UnderlyingPrice                          float64
+ImpliedVolatility                        float64
+InterestRate                             float64
+dtype: object
+```
+
+
+### キャッシュ機能
+
 同じデータを取得した場合、データはsqlite3のデータベースにキャッシュされるため、2回目以降の実行ではキャッシュされたデータをもとに DataFrame を返します。
 
 ```python
