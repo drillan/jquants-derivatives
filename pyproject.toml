@@ -2,7 +2,6 @@
 name = "jquants-derivatives"
 version = "0.1.0-alpha2"
 description = "J-Quants API Client Derivatives Library"
-readme = "README.md"
 authors = ["driller"]
 readme = "README.md"
 packages = [{include = "jquants_derivatives"}]

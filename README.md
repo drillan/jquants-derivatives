@@ -212,7 +212,7 @@ op_20230605.contracts_dfs["2023-07"].iloc[:3, :5]
 jquants_derivatives.plot_volatility(op_20230605)
 ```
 
-![op_20230605](./docs/images/op_20230605.png)
+![op_20230605](https://github.com/drillan/jquants-derivatives/blob/main/docs/images/op_20230605.png?raw=true)
 
 ```python
 op_2023060 = Option(df_20230605, contracts=2)
@@ -226,4 +226,4 @@ op_20230602 = Option(df_20230602)
 jquants_derivatives.plot_volatility(op_20230605, op_20230602)
 ```
 
-![op_20230602](./docs/images/op_20230602.png)
+![op_20230602](https://github.com/drillan/jquants-derivatives/blob/main/docs/images/op_20230602.png?raw=true)
