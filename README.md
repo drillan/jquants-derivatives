@@ -216,6 +216,8 @@ DBに接続し、SQLを実行します。
 `jquants_derivatives.Option` クラスはAPIから得られたオプションのデータを整形し、実務上扱いやすい形式に変換するクラスです。引数には `get_option_index_option` メソッドで取得した DataFrme を渡します。引数 `contracts` には対象とする限月数を渡します（デフォルトは2）。
 
 ```python
+from jquants_derivatives import Option
+
 op_20230605 = Option(df_20230605, contracts=2)
 ```
 

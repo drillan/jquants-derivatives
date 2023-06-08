@@ -49,19 +49,23 @@ class Option:
         volume_exists = df.loc[df.loc[:, "Volume"] != 0, :].sort_values("StrikePrice")
         # OTMを抽出、ATMとストライクが同値の場合はプット型に寄せる
         put = volume_exists.loc[
-            (volume_exists.loc[:, "StrikePrice"] <= s)
-            & (volume_exists.loc[:, "PutCallDivision"] == 1)
+            (volume_exists.loc[:, "PutCallDivision"] == 1)
+            & (volume_exists.loc[:, "WholeDayClose"] != 0)
+            & (volume_exists.loc[:, "StrikePrice"] <= s)
         ]
         call_ = volume_exists.loc[
-            (volume_exists.loc[:, "StrikePrice"] > s)
-            & (volume_exists.loc[:, "PutCallDivision"] == 2)
+            (volume_exists.loc[:, "PutCallDivision"] == 2)
+            & (volume_exists.loc[:, "WholeDayClose"] != 0)
+            & (volume_exists.loc[:, "StrikePrice"] > s)
         ]
         # 扱うストライクをプレミアムの最小値までとする
+        min_price_put = max(put.loc[:, "WholeDayClose"].min(), self.min_price)
         price_min_strike_put = put.loc[
-            put.loc[:, "WholeDayClose"] == self.min_price, "StrikePrice"
+            put.loc[:, "WholeDayClose"] == min_price_put, "StrikePrice"
         ].max()
+        min_price_call = max(call_.loc[:, "WholeDayClose"].min(), self.min_price)
         price_min_strike_call = call_.loc[
-            call_.loc[:, "WholeDayClose"] == self.min_price, "StrikePrice"
+            call_.loc[:, "WholeDayClose"] == min_price_call, "StrikePrice"
         ].min()
         filtered_put = put.loc[put.loc[:, "StrikePrice"] >= price_min_strike_put, :]
         filtered_call = call_.loc[
