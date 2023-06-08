@@ -211,6 +211,17 @@ DBに接続し、SQLを実行します。
 |  1 |           29520.1 |
 |  2 |           29520.1 |
 
+pandasの `read_sql` 関数から DataFrameに読み込めます。
+
+```python
+import sqlite3
+
+with sqlite3.connect(jquants_derivatives.database.db) as con:
+    query_df = pd.read_sql(
+        "SELECT UnderlyingPrice FROM OPTION_INDEX_OPTION LIMIT 3", con
+    )
+```
+
 ### Optionクラス
 
 `jquants_derivatives.Option` クラスはAPIから得られたオプションのデータを整形し、実務上扱いやすい形式に変換するクラスです。引数には `get_option_index_option` メソッドで取得した DataFrme を渡します。引数 `contracts` には対象とする限月数を渡します（デフォルトは2）。
