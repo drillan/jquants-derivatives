@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
+from . import bsm
 
 YEAR_TO_SECONDS = 31_536_000  # 365日を秒に換算
 
@@ -13,6 +16,7 @@ class Option:
     df: pd.DataFrame
     contracts: int = 2  # 扱う限月の数
     min_price: float = 1  # 扱うプレミアムの最小値
+    greeks: bool = True
 
     def __post_init__(self):
         self.date = self.df.loc[:, "Date"].iloc[0]
@@ -40,6 +44,12 @@ class Option:
             )
             for contract_month in self.contract_month
         }
+        if self.greeks:
+            for contract in self.contract_month:
+                greeks_df = self.make_greeks_df(contract)
+                self.contracts_dfs[contract] = pd.concat(
+                    [self.contracts_dfs[contract], greeks_df], axis=1
+                )
 
     def get_processed_data(self) -> dict[str, pd.DataFrame]:
         contracts_dfs = {
@@ -104,6 +114,31 @@ class Option:
 
     def get_time_to_maturity(self, t0: pd.Timestamp, t1: pd.Timestamp) -> float:
         return (t1 - t0).total_seconds() / YEAR_TO_SECONDS
+
+    def make_greeks_df(self, contract: str) -> pd.DataFrame:
+        df = self.contracts_dfs[contract]
+        groupby_div = df.groupby("PutCallDivision")
+        put_df = groupby_div.get_group(1)
+        call_df = groupby_div.get_group(2)
+        s = self.underlying_price[contract]
+        t = self.time_to_maturity[contract]
+        r = self.interest_rate[contract]
+        k = df.loc[:, "StrikePrice"]
+        k_put = put_df.loc[:, "StrikePrice"]
+        k_call = call_df.loc[:, "StrikePrice"]
+        sigma = df.loc[:, "ImpliedVolatility"]
+        sigma_put = put_df.loc[:, "ImpliedVolatility"]
+        sigma_call = call_df.loc[:, "ImpliedVolatility"]
+        greeks = {}
+        delta_put = bsm.delta_put(s, k_put, t, r, sigma_put)
+        delta_call = bsm.delta_call(s, k_call, t, r, sigma_call)
+        greeks["Delta"] = np.concatenate([delta_put, delta_call])
+        greeks["Gamma"] = bsm.gamma(s, k, t, r, sigma)
+        greeks["Vega"] = bsm.vega(s, k, t, r, sigma)
+        theta_put = bsm.theta_put(s, k_put, t, r, sigma_put)
+        theta_call = bsm.theta_call(s, k_call, t, r, sigma_call)
+        greeks["Theta"] = np.concatenate([theta_put, theta_call])
+        return pd.DataFrame(greeks, index=df.index)
 
 
 def plot_volatility(

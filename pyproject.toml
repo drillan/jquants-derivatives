@@ -11,6 +11,7 @@ homepage = "https://github.com/drillan/jquants-derivatives"
 python = "^3.10"
 jquants-api-client = "^1.2.0"
 plotly = "^5.14.1"
+scipy = { version = "^1.11.2", python = ">=3.10,<3.13"}
 
 
 [tool.poetry.group.dev.dependencies]
