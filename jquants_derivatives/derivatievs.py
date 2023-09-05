@@ -5,6 +5,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+YEAR_TO_SECONDS = 31_536_000  # 365日を秒に換算
+
 
 @dataclass
 class Option:
@@ -32,6 +34,12 @@ class Option:
         self.special_quotationDay: dict[str, pd.Timestamp] = self.get_common_value(
             "SpecialQuotationDay"
         )
+        self.time_to_maturity = {
+            contract_month: self.get_time_to_maturity(
+                self.date, self.special_quotationDay[contract_month]
+            )
+            for contract_month in self.contract_month
+        }
 
     def get_processed_data(self) -> dict[str, pd.DataFrame]:
         contracts_dfs = {
@@ -93,6 +101,9 @@ class Option:
             contract: self.contracts_dfs[contract].loc[:, value].iloc[0]
             for contract in self.contracts_dfs
         }
+
+    def get_time_to_maturity(self, t0: pd.Timestamp, t1: pd.Timestamp) -> float:
+        return (t1 - t0).total_seconds() / YEAR_TO_SECONDS
 
 
 def plot_volatility(
