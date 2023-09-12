@@ -263,7 +263,7 @@ op_20230605.base_volatility
 {'2023-06': 0.1951205, '2023-07': 0.1951205}
 ```
 
-`op_2023060.interest_rate` 属性は限月ごとの理論価格計算用金利（InterestRate）の辞書を返します。
+`interest_rate` 属性は限月ごとの理論価格計算用金利（InterestRate）の辞書を返します。
 
 ```python
 op_20230605.interest_rate
@@ -271,6 +271,16 @@ op_20230605.interest_rate
 
 ```python
 {'2023-06': -0.000664, '2023-07': 0.000455}
+```
+
+バージョン0.3.0から、`final_settlement_price` 属性は限月ごとの [SQ値](https://www.jpx.co.jp/markets/derivatives/special-quotation/index.html) の辞書を返します。
+
+```python
+op_20230605.final_settlement_price
+```
+
+```python
+{'2023-06': 32018.4, '2023-07': 32484.2}
 ```
 
 `contracts_dfs` 属性は限月ごとの次の処理をした DataFrame を返します。
@@ -300,19 +310,20 @@ op_20230605.contracts_dfs["2023-07"].iloc[:3, :5]
 |  1 | 2023-06-05 00:00:00 | 188067718 |              3 |              4 |             1 |               2 |                  3 |
 |  2 | 2023-06-05 00:00:00 | 138067818 |              3 |              4 |             2 |               2 |                  3 |
 
-バージョン0.2.0から、 DataFrame には [Greeks](https://en.wikipedia.org/wiki/Greeks_(finance)) （Delta, Gamma, Vega, Theta）が含まれます。
+バージョン0.2.0から、 DataFrame には [Greeks](https://en.wikipedia.org/wiki/Greeks_(finance)) （Delta, Gamma, Vega, Theta）が含まれます。バージョン0.3.0から、 DataFrame には限月ごとの [SQ値](https://www.jpx.co.jp/markets/derivatives/special-quotation/index.html) （FinalSettlementPrice）列が含まれます。
 
 ```python
-op_20230605.contracts_dfs["2023-06"].iloc[:3, -4:]
+op_20230605.contracts_dfs["2023-06"].iloc[:3, -5:]
 ```
 
-|    |       Delta |       Gamma |    Vega |    Theta |
-|---:|------------:|------------:|--------:|---------:|
-|  0 | -0.00202858 | 3.70614e-06 | 21.6606 | -507.822 |
-|  1 | -0.00368365 | 6.09453e-06 | 37.112  | -906.529 |
-|  2 | -0.00378307 | 6.41669e-06 | 38.0091 | -903.146 |
+|    |   FinalSettlementPrice |       Delta |       Gamma |    Vega |    Theta |
+|---:|-----------------------:|------------:|------------:|--------:|---------:|
+|  0 |                32018.4 | -0.00202858 | 3.70614e-06 | 21.6606 | -507.822 |
+|  1 |                32018.4 | -0.00368365 | 6.09453e-06 | 37.112  | -906.529 |
+|  2 |                32018.4 | -0.00378307 | 6.41669e-06 | 38.0091 | -903.146 |
 
-Greeksを算出しない場合は、 `Option` クラスの引数 `greeks` を `False` にします。
+- Greeksを算出しない場合は、 `Option` クラスの引数 `greeks` を `False` にします。
+- SQ値を含めない場合は、 `Option` クラスの引数 `sq` を `False` にします。
 
 ### ボラティリティの可視化
 

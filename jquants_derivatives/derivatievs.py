@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from . import database
 from . import bsm
 
 YEAR_TO_SECONDS = 31_536_000  # 365日を秒に換算
@@ -16,6 +17,7 @@ class Option:
     df: pd.DataFrame
     contracts: int = 2  # 扱う限月の数
     min_price: float = 1  # 扱うプレミアムの最小値
+    sq: bool = True
     greeks: bool = True
 
     def __post_init__(self):
@@ -44,12 +46,26 @@ class Option:
             )
             for contract_month in self.contract_month
         }
+        if self.sq:
+            sq = pd.read_csv(database.sq_csv).loc[
+                :, ["ContractMonth", "FinalSettlementPrice"]
+            ]
+            for contract in self.contract_month:
+                self.contracts_dfs[contract] = pd.merge(
+                    self.contracts_dfs[contract],
+                    sq,
+                    on="ContractMonth",
+                    how="left",
+                )
         if self.greeks:
             for contract in self.contract_month:
                 greeks_df = self.make_greeks_df(contract)
                 self.contracts_dfs[contract] = pd.concat(
                     [self.contracts_dfs[contract], greeks_df], axis=1
                 )
+        self.final_settlement_price: dict[str, float] = self.get_common_value(
+            "FinalSettlementPrice"
+        )
 
     def get_processed_data(self) -> dict[str, pd.DataFrame]:
         contracts_dfs = {

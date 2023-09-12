@@ -1,11 +1,13 @@
 import sqlite3
 from pathlib import Path
+from urllib import request
 
 import jquantsapi
 import pandas as pd
 
 directory = Path.home() / ".jquants-api"
 db = directory / "jquantsapi.db"
+sq_csv = directory / "sq.csv"
 
 
 def generate_table_sql(constant: str) -> str:
@@ -37,10 +39,19 @@ def load(table: str, date_yyyymmdd: str) -> pd.DataFrame:
         return pd.read_sql(sql, con)
 
 
+def update_sq() -> None:
+    directory.mkdir(exist_ok=True)
+    data = request.urlopen(
+        "https://raw.githubusercontent.com/drillan/jquants-derivatives/main/data/sq.csv"
+    ).read()
+    sq_csv.write_bytes(data)
+
+
 def main() -> None:
     if not db.exists():
         directory.mkdir(exist_ok=True)
         create_tables()
+    update_sq()
 
 
 if __name__ == "__main__":
