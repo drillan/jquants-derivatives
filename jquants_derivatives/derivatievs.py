@@ -20,7 +20,7 @@ class Option:
     min_price: float = 1  # 扱うプレミアムの最小値
     sq: bool = True
     greeks: bool = True
-    use_cachaed: bool = False  # 未実装
+    use_cache: bool = False  # 未実装
 
     def __post_init__(self):
         self.raw_df = self.df.copy()
