@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Type
 
 import numpy as np
+import pandas as pd
 
 
 @dataclass
@@ -49,3 +50,14 @@ class IndexOption(DataFrameColumnsBase):
     def get_dtype(cls, field: str) -> Type[Any]:
         key = field.replace("(", "").replace(")", "")
         return cls.__annotations__[key]
+
+
+@dataclass
+class IndexOptionAppend(IndexOption):
+    Otm: pd.Int8Dtype()
+    TimeToMaturity: np.dtype("datetime64[ns]")
+    FinalSettlementPrice: float
+    Delta: float
+    Gamma: float
+    Vega: float
+    Theta: float

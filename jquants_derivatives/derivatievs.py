@@ -6,8 +6,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from . import database
-from . import bsm
+from jquants_derivatives.models import IndexOptionAppend
+
+from . import bsm, database
 
 YEAR_TO_SECONDS = 31_536_000  # 365日を秒に換算
 
@@ -19,61 +20,148 @@ class Option:
     min_price: float = 1  # 扱うプレミアムの最小値
     sq: bool = True
     greeks: bool = True
+    use_cachaed: bool = False  # 未実装
 
     def __post_init__(self):
-        self.date = self.df.loc[:, "Date"].iloc[0]
-        self._groupby_contract_month: pd.core.groupby.generic.DataFrameGroupBy = (
-            self.df.groupby("ContractMonth")
+        self.raw_df = self.df.copy()
+        # 取引日
+        self.date = self.raw_df.loc[:, "Date"].iloc[0]
+        # 限月
+        self.contract_month = sorted(
+            self.raw_df.groupby("ContractMonth").groups.keys()
+        )[: self.contracts]
+        self._groupby_contract_month = (
+            self.raw_df.reset_index(drop=True)
+            .set_index("ContractMonth")
+            .loc[self.contract_month]
+            .groupby("ContractMonth")
         )
-        self.contract_month: list = sorted(self._groupby_contract_month.groups.keys())[
-            : self.contracts
-        ][: self.contracts]
-        self.contracts_dfs: dict[str, pd.DataFrame] = self.get_processed_data()
-        self.underlying_price: dict[str, float] = self.get_common_value(
-            "UnderlyingPrice"
+        # 原資産価格
+        self.underlying_price = dict(
+            self._groupby_contract_month["UnderlyingPrice"].first()
         )
-        self.base_volatility: dict[str, float] = self.get_common_value("BaseVolatility")
-        self.interest_rate: dict[str, float] = self.get_common_value("InterestRate")
-        self.last_tradingDay: dict[str, pd.Timestamp] = self.get_common_value(
-            "LastTradingDay"
+        # 基準ボラティリティ
+        self.base_volatility = dict(
+            self._groupby_contract_month["BaseVolatility"].first()
         )
-        self.special_quotationDay: dict[str, pd.Timestamp] = self.get_common_value(
-            "SpecialQuotationDay"
+        # 理論価格計算用金利
+        self.interest_rate = dict(self._groupby_contract_month["InterestRate"].first())
+        # 取引最終年月日
+        self.last_tradingDay = dict(
+            self._groupby_contract_month["LastTradingDay"].first()
         )
+        # 期間
         self.time_to_maturity = {
-            contract_month: self.get_time_to_maturity(
-                self.date, self.special_quotationDay[contract_month]
+            contract: self.get_time_to_maturity(
+                self.date, self.last_tradingDay[contract]
             )
-            for contract_month in self.contract_month
-        }
-        if self.sq:
-            sq = pd.read_csv(database.sq_csv).loc[
-                :, ["ContractMonth", "FinalSettlementPrice"]
-            ]
-            for contract in self.contract_month:
-                self.contracts_dfs[contract] = pd.merge(
-                    self.contracts_dfs[contract],
-                    sq,
-                    on="ContractMonth",
-                    how="left",
-                )
-        if self.greeks:
-            for contract in self.contract_month:
-                greeks_df = self.make_greeks_df(contract)
-                self.contracts_dfs[contract] = pd.concat(
-                    [self.contracts_dfs[contract], greeks_df], axis=1
-                )
-        self.final_settlement_price: dict[str, float] = self.get_common_value(
-            "FinalSettlementPrice"
-        )
-
-    def get_processed_data(self) -> dict[str, pd.DataFrame]:
-        contracts_dfs = {
-            contract: self.filter_data(self._groupby_contract_month.get_group(contract))
             for contract in self.contract_month
         }
-        for key in contracts_dfs:
-            contracts_dfs[key] = self.percentage_to_decimal(contracts_dfs[key])
+        # SQ値
+        if self.sq:
+            self.sq_price = self.get_sq_price()
+
+        self._append_columns = ["Otm", "TimeToMaturity"]
+        if self.sq:
+            self._append_columns += ["FinalSettlementPrice"]
+        if self.greeks:
+            self._append_columns += ["Delta", "Gamma", "Vega", "Theta"]
+
+        if self.use_cachaed:
+            pass
+        else:
+            self.df = self.process_data()
+
+        self.contracts_dfs = self.get_filtered_data(self.df)
+
+    def process_data(self) -> pd.DataFrame:
+        groupby_contract_month = self.raw_df.groupby("ContractMonth")
+        base_df = (
+            pd.concat(
+                [
+                    groupby_contract_month.get_group(contract)
+                    for contract in self.contract_month
+                ]
+            )
+            .sort_values(by=["ContractMonth", "PutCallDivision", "StrikePrice"])
+            .reset_index(drop=True)
+        )
+        concat_df_series = [base_df] + [
+            pd.Series(name=columns, dtype=IndexOptionAppend.get_dtype(columns))
+            for columns in self._append_columns
+        ]
+        df = pd.concat(concat_df_series, axis=1)
+        df.index = df.apply(
+            lambda x: (x["ContractMonth"], x["PutCallDivision"], int(x["StrikePrice"])),
+            axis=1,
+        )
+        # 百分率を小数に変換
+        df.loc[:, ["BaseVolatility", "ImpliedVolatility", "InterestRate"]] = (
+            df.loc[:, ["BaseVolatility", "ImpliedVolatility", "InterestRate"]] * 0.01
+        )
+        # OTM
+        df["Otm"] = np.int8(0)
+        # Put
+        df.loc[
+            (df.loc[:, "StrikePrice"] <= df.loc[:, "UnderlyingPrice"])
+            & (df.loc[:, "PutCallDivision"] == 1),
+            "Otm",
+        ] = np.int8(1)
+        # Call
+        df.loc[
+            (df.loc[:, "StrikePrice"] > df.loc[:, "UnderlyingPrice"])
+            & (df.loc[:, "PutCallDivision"] == 2),
+            "Otm",
+        ] = np.int8(1)
+
+        ix = _get_ix(df, self.contract_month)
+        # 期間
+        for contract in self.contract_month:
+            df.loc[ix["contract"][contract], "TimeToMaturity"] = self.time_to_maturity[
+                contract
+            ]
+        # SQ値
+        if self.sq:
+            for contract in self.contract_month:
+                df.loc[
+                    ix["contract"][contract], "FinalSettlementPrice"
+                ] = self.sq_price[contract]
+        # ITMのボラティリティをOTMにそろえる
+        self.align_itm_from_otm(df, "ImpliedVolatility")
+        # Greeks
+        if self.greeks:
+            apply_greeks(df, self.contract_month)
+
+        return df
+
+    def get_time_to_maturity(self, t0: pd.Timestamp, t1: pd.Timestamp) -> float:
+        """満期までの期間（年）"""
+        return (t1 - t0).total_seconds() / YEAR_TO_SECONDS
+
+    def get_sq_price(self) -> dict[str, float]:
+        """SQ値"""
+        sq_ser = pd.read_csv(database.sq_csv, index_col="ContractMonth").loc[
+            :, "FinalSettlementPrice"
+        ]
+        return dict(sq_ser.reindex(self.contract_month))
+
+    def align_itm_from_otm(self, df: pd.DataFrame, columns_name: str) -> None:
+        """ITMのデータをOTMにそろえる"""
+        ix = _get_ix(df, self.contract_month)
+        for contract in self.contract_month:
+            df.loc[ix["itm_put"][contract], columns_name] = df.loc[
+                ix["otm_call"][contract], columns_name
+            ].values
+            df.loc[ix["itm_call"][contract], columns_name] = df.loc[
+                ix["otm_put"][contract], columns_name
+            ].values
+
+    def get_filtered_data(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+        groupby_contract = df.groupby("ContractMonth")
+        contracts_dfs = {
+            contract: self.filter_data(groupby_contract.get_group(contract))
+            for contract in self.contract_month
+        }
         return contracts_dfs
 
     def filter_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -109,52 +197,139 @@ class Option:
             "StrikePrice"
         )
 
-    def percentage_to_decimal(self, df: pd.DataFrame) -> pd.DataFrame:
-        cols = "BaseVolatility", "ImpliedVolatility", "InterestRate"
 
-        def to_decimal(col: str, ser: pd.Series) -> pd.Series:
-            if col in cols:
-                return ser * 0.01
-            else:
-                return ser
+def _get_ix(df: pd.DataFrame, contract_month: list) -> dict:
+    ix = {}
+    ix["contract"] = {
+        contract: df.loc[df.loc[:, "ContractMonth"] == contract].index
+        for contract in contract_month
+    }
+    ix["put"] = {
+        contract: df.loc[
+            (df.loc[:, "ContractMonth"] == contract)
+            & (df.loc[:, "PutCallDivision"] == 1)
+        ].index
+        for contract in contract_month
+    }
+    ix["call"] = {
+        contract: df.loc[
+            (df.loc[:, "ContractMonth"] == contract)
+            & (df.loc[:, "PutCallDivision"] == 2)
+        ].index
+        for contract in contract_month
+    }
+    ix["otm_put"] = {
+        contract: df.loc[
+            (df.loc[:, "ContractMonth"] == contract)
+            & (df.loc[:, "PutCallDivision"] == 1)
+            & (df.loc[:, "Otm"] == 1)
+        ].index
+        for contract in contract_month
+    }
+    ix["otm_call"] = {
+        contract: df.loc[
+            (df.loc[:, "ContractMonth"] == contract)
+            & (df.loc[:, "PutCallDivision"] == 2)
+            & (df.loc[:, "Otm"] == 1)
+        ].index
+        for contract in contract_month
+    }
+    ix["itm_put"] = {
+        contract: df.loc[
+            (df.loc[:, "ContractMonth"] == contract)
+            & (df.loc[:, "PutCallDivision"] == 1)
+            & (df.loc[:, "Otm"] == 0)
+        ].index
+        for contract in contract_month
+    }
+    ix["itm_call"] = {
+        contract: df.loc[
+            (df.loc[:, "ContractMonth"] == contract)
+            & (df.loc[:, "PutCallDivision"] == 2)
+            & (df.loc[:, "Otm"] == 0)
+        ].index
+        for contract in contract_month
+    }
+    return ix
 
-        return pd.DataFrame(
-            {col: to_decimal(col, df.loc[:, col]) for col in df.columns}
-        )
 
-    def get_common_value(self, value: str) -> dict:
-        return {
-            contract: self.contracts_dfs[contract].loc[:, value].iloc[0]
-            for contract in self.contracts_dfs
-        }
+def apply_greeks(df: pd.DataFrame, contract_month: list) -> None:
+    for contract in contract_month:
+        _apply_greeks(df, contract_month, contract)
 
-    def get_time_to_maturity(self, t0: pd.Timestamp, t1: pd.Timestamp) -> float:
-        return (t1 - t0).total_seconds() / YEAR_TO_SECONDS
 
-    def make_greeks_df(self, contract: str) -> pd.DataFrame:
-        df = self.contracts_dfs[contract]
-        groupby_div = df.groupby("PutCallDivision")
-        put_df = groupby_div.get_group(1)
-        call_df = groupby_div.get_group(2)
-        s = self.underlying_price[contract]
-        t = self.time_to_maturity[contract]
-        r = self.interest_rate[contract]
-        k = df.loc[:, "StrikePrice"]
-        k_put = put_df.loc[:, "StrikePrice"]
-        k_call = call_df.loc[:, "StrikePrice"]
-        sigma = df.loc[:, "ImpliedVolatility"]
-        sigma_put = put_df.loc[:, "ImpliedVolatility"]
-        sigma_call = call_df.loc[:, "ImpliedVolatility"]
-        greeks = {}
-        delta_put = bsm.delta_put(s, k_put, t, r, sigma_put)
-        delta_call = bsm.delta_call(s, k_call, t, r, sigma_call)
-        greeks["Delta"] = np.concatenate([delta_put, delta_call])
-        greeks["Gamma"] = bsm.gamma(s, k, t, r, sigma)
-        greeks["Vega"] = bsm.vega(s, k, t, r, sigma)
-        theta_put = bsm.theta_put(s, k_put, t, r, sigma_put)
-        theta_call = bsm.theta_call(s, k_call, t, r, sigma_call)
-        greeks["Theta"] = np.concatenate([theta_put, theta_call])
-        return pd.DataFrame(greeks, index=df.index)
+def _apply_greeks(df: pd.DataFrame, contract_month: list, contract: str) -> None:
+    ix = _get_ix(df, contract_month)
+    # Delta put
+    df.loc[ix["put"][contract], "Delta"] = df.loc[ix["put"][contract], :].apply(
+        lambda x: bsm.delta_put(
+            x["UnderlyingPrice"],
+            x["StrikePrice"],
+            x["TimeToMaturity"],
+            x["InterestRate"],
+            x["ImpliedVolatility"],
+        ),
+        axis=1,
+    )
+    # Delta Call
+    df.loc[ix["call"][contract], "Delta"] = df.loc[ix["call"][contract], :].apply(
+        lambda x: bsm.delta_call(
+            x["UnderlyingPrice"],
+            x["StrikePrice"],
+            x["TimeToMaturity"],
+            x["InterestRate"],
+            x["ImpliedVolatility"],
+        ),
+        axis=1,
+    )
+    # Gamma
+    df.loc[ix["contract"][contract], "Gamma"] = df.loc[
+        ix["contract"][contract], :
+    ].apply(
+        lambda x: bsm.gamma(
+            x["UnderlyingPrice"],
+            x["StrikePrice"],
+            x["TimeToMaturity"],
+            x["InterestRate"],
+            x["ImpliedVolatility"],
+        ),
+        axis=1,
+    )
+    # Vega
+    df.loc[ix["contract"][contract], "Vega"] = df.loc[
+        ix["contract"][contract], :
+    ].apply(
+        lambda x: bsm.vega(
+            x["UnderlyingPrice"],
+            x["StrikePrice"],
+            x["TimeToMaturity"],
+            x["InterestRate"],
+            x["ImpliedVolatility"],
+        ),
+        axis=1,
+    )
+    # Theta put
+    df.loc[ix["put"][contract], "Theta"] = df.loc[ix["put"][contract], :].apply(
+        lambda x: bsm.theta_put(
+            x["UnderlyingPrice"],
+            x["StrikePrice"],
+            x["TimeToMaturity"],
+            x["InterestRate"],
+            x["ImpliedVolatility"],
+        ),
+        axis=1,
+    )
+    # Theta Call
+    df.loc[ix["call"][contract], "Theta"] = df.loc[ix["call"][contract], :].apply(
+        lambda x: bsm.theta_call(
+            x["UnderlyingPrice"],
+            x["StrikePrice"],
+            x["TimeToMaturity"],
+            x["InterestRate"],
+            x["ImpliedVolatility"],
+        ),
+        axis=1,
+    )
 
 
 def plot_volatility(
