@@ -20,7 +20,8 @@ class Option:
     min_price: float = 1  # 扱うプレミアムの最小値
     sq: bool = True
     greeks: bool = True
-    use_cache: bool = False  # 未実装
+    use_cache: bool = True
+    cache_table_name: str = "OPTION_INDEX_OPTION_PROCESSED"
 
     def __post_init__(self):
         self.raw_df = self.df.copy()
@@ -67,12 +68,16 @@ class Option:
         if self.greeks:
             self._append_columns += ["Delta", "Gamma", "Vega", "Theta"]
 
-        if self.use_cachaed:
-            pass
+        if self.use_cache:
+            data = database.load(self.cache_table_name, str(self.date))
+            if len(data) > 0:
+                self.df = data
+            else:
+                self.df = self.process_data()
+                database.store(self.df, self.cache_table_name)
         else:
             self.df = self.process_data()
-
-        self.contracts_dfs = self.get_filtered_data(self.df)
+            database.store(self.df, self.cache_table_name)
 
     def process_data(self) -> pd.DataFrame:
         groupby_contract_month = self.raw_df.groupby("ContractMonth")
