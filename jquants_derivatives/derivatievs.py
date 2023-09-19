@@ -78,6 +78,8 @@ class Option:
         else:
             self.df = self.process_data()
             database.store(self.df, self.cache_table_name)
+        
+        self.contracts_dfs = self.get_filtered_data(self.df)
 
     def process_data(self) -> pd.DataFrame:
         groupby_contract_month = self.raw_df.groupby("ContractMonth")
