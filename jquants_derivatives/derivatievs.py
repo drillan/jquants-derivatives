@@ -61,6 +61,7 @@ class Option:
         # SQ値
         if self.sq:
             self.sq_price = self.get_sq_price()
+            self.final_settlement_price = self.sq_price
 
         self._append_columns = ["Otm", "TimeToMaturity"]
         if self.sq:
