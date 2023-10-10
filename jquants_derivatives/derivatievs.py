@@ -69,7 +69,10 @@ class Option:
             self._append_columns += ["Delta", "Gamma", "Vega", "Theta"]
 
         if self.use_cache:
-            data = database.load(self.cache_table_name, str(self.date))
+            try:
+                data = database.load(self.cache_table_name, str(self.date))
+            except pd.errors.DatabaseError:
+                data = pd.DataFrame()
             if len(data) > 0:
                 self.df = data
             else:

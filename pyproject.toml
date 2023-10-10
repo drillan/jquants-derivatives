@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "jquants-derivatives"
-version = "0.3.1"
+version = "0.3.2"
 description = "J-Quants API Client Derivatives Library"
 authors = ["driller"]
 readme = "README.md"
